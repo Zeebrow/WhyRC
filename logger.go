@@ -24,10 +24,8 @@ func (l *Log) Printf(m string, a ...interface{}) func(m string, a ...interface{}
 		l.logger.Printf(m, a)
 	}
 }
-func (l *Log) Println(t string) func(m string) {
-	return func(m string) {
-		l.logger.Println(m)
-	}
+func (l *Log) Println(t string) {
+	l.logger.Println(t)
 }
 
 func (l *Log) Fatalf(m string, a ...interface{}) func(m string, a ...interface{}) {
