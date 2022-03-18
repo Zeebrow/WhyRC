@@ -44,17 +44,18 @@ func sendText(conn net.Conn, writerChan chan<- string, name string, msg string) 
 	log.Println("Closing connection")
 }
 
-func startClient(conn net.Conn, responseChan chan<- string, readerChan chan string, name string, msg string) {
+// func startClient(conn net.Conn, responseChan chan<- string, readerChan chan string, name string, msg string) {
+func startClient(conn net.Conn, responseChan chan<- string, name string, msg string) {
 	log.Printf("started client at %s\n", conn.RemoteAddr().String())
-	ch := make(chan string, 1)
+	// ch := make(chan string, 1)
 
 	ClientWG.Add(1)
-	go sendText(conn, ch, name, msg)
-	resp := <-ch
-	readerChan <- resp
+	go sendText(conn, responseChan, name, msg)
+	// resp := <-ch
+	// responseChan <- resp
 }
 
-func connect(name string, msg string) {
+func connect(name string, msg string, respChan chan string) {
 	log.Println("Creating new connection")
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
@@ -62,26 +63,26 @@ func connect(name string, msg string) {
 	}
 	log.Printf("Connected to server %s\n", conn.RemoteAddr().String())
 
-	readerChan := make(chan string, 1)
-	writerChan := make(chan string, 1)
+	responseChan := make(chan string, 1)
 
 	ClientWG.Add(1)
-	go startClient(conn, readerChan, writerChan, name, msg)
-	log.Printf("chan writer: %s\n", <-writerChan)
+	// go startClient(conn, readerChan, responseChan, name, msg)
+	go startClient(conn, responseChan, name, msg)
+	log.Printf("connect() writing to responseChan: %s\n", <-responseChan)
 }
 
-func srvrMsg(name string, msg string) {
-	connect(name, msg+"\n") //Only open a new connection when we want to say something
+func srvrMsg(name string, msg string, respChan chan string) {
+	connect(name, msg+"\n", respChan) //Only open a new connection when we want to say something
 }
 
-func msg(name string) {
+func msg(name string, respChan chan string) {
 	fmt.Printf("%s>", name)
 	reader := bufio.NewReader(os.Stdin)
 	rb, err := reader.ReadString('\n')
 	if err != nil {
 		log.Fatalf("error reading message from stdin: %s\n", err)
 	}
-	connect(name, rb) //Only open a new connection when we want to say something
+	connect(name, rb, respChan) //Only open a new connection when we want to say something
 }
 
 func newServerMessageConnection(sm chan string) {
@@ -92,6 +93,7 @@ func handleServerMessage(m string) {
 	log.Printf("Server message: %s\n", m)
 }
 func listenForServerMessages(fromServerChan chan<- string) {
+	log.Println("listening for server messages")
 	smChan := make(chan string)
 	defer newServerMessageConnection(smChan)
 	resp := <-smChan //blocks here?
@@ -99,29 +101,27 @@ func listenForServerMessages(fromServerChan chan<- string) {
 	fromServerChan <- resp
 }
 
-func join() func() {
+// func join(clientMsgChan chan string) func(ch chan string) {
+func join(clientMsgChan chan string, serverMsgChan chan string) func() {
 	var n string = USERNAME
 	fmt.Println("Hi! You found the chat!")
 	fmt.Printf("What's your name?>")
 	name := bufio.NewReader(os.Stdin)
 	n, _ = name.ReadString('\n')
 	n = strings.ReplaceAll(n, "\n", "")
-	//tod omatch name regex
 	fmt.Printf("Welcome, %s! Type your message and press 'Enter' to send. Ctrl+C exits.\n\n", n)
 
-	srvrMsg("42069", n)
-	serverResponse := make(chan string, 1)
-	go listenForServerMessages(serverResponse)
-	// Leave open connection for server messages?
-	// go letsRead()
+	srvrMsg("42069", n, serverMsgChan)
 	return func() {
+		log.Println("Awaiting client message input")
 		fmt.Printf("%s>", n)
 		reader := bufio.NewReader(os.Stdin)
 		rb, err := reader.ReadString('\n')
 		if err != nil {
 			log.Fatalf("error reading message from stdin: %s\n", err)
 		}
-		connect(n, rb) //Only open a new connection when we want to say something
+		connect(n, rb, clientMsgChan) //Only open a new connection when we want to say something
+		clientMsgChan <- "Ok"
 	}
 }
 func RunClient() {
@@ -131,10 +131,23 @@ func RunClient() {
 	}
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.SetOutput(f)
+	log.Println()
 	log.Println("Starting client")
-	yMsg := join()
+
+	clientSendMsgChan := make(chan string, 1)
+	clientReceiveSrvrMsgChan := make(chan string, 1)
+
+	yMsg := join(clientSendMsgChan, clientReceiveSrvrMsgChan)
 	for {
-		yMsg() // disconnect to reset name
-		// msg(n)
+		go yMsg() // disconnect to reset name
+		go listenForServerMessages(clientReceiveSrvrMsgChan)
+		log.Println("selecting?...")
+		select {
+		case c := <-clientSendMsgChan:
+			log.Printf("Client message chan%s\n", c)
+		case s := <-clientReceiveSrvrMsgChan:
+			log.Printf("Got message from server: %s\n", s)
+		}
+		log.Println("done selecting.")
 	}
 }
