@@ -11,8 +11,9 @@ import (
 	"sync"
 )
 
+var logger Log
 var ClientWG sync.WaitGroup
-var USERNAME string = ""
+var USERNAME string
 
 func letsRead(conn net.Conn, readerChan chan<- string) {
 	defer conn.Close() //Close connection as soon as server responds
@@ -21,7 +22,7 @@ func letsRead(conn net.Conn, readerChan chan<- string) {
 	if err == io.EOF {
 		readerChan <- connReader
 	} else if err != nil {
-		log.Printf("Error reading continuously: %s\n", err)
+		logger.Printf("Error reading continuously: %s\n", err)
 		conn.Close()
 	}
 }
@@ -34,18 +35,18 @@ func sendText(conn net.Conn, writerChan chan<- string, name string, msg string) 
 	writer := bufio.NewWriter(conn)
 	_, err = writer.WriteString(name + " " + msg) //dat delimiter, doe
 	if err != nil {
-		log.Printf("failed to write to client: %s", err)
+		logger.Printf("failed to write to client: %s", err)
 	}
 	writer.Flush()
-	log.Println("Flushed")
+	logger.Println("Flushed")
 
 	writeout := <-readCh
 	writerChan <- writeout
-	log.Println("Closing connection")
+	logger.Println("Closing connection")
 }
 
 func startClient(conn net.Conn, responseChan chan<- string, readerChan chan string, name string, msg string) {
-	log.Printf("started client at %s\n", conn.RemoteAddr().String())
+	logger.Printf("started client at %s\n", conn.RemoteAddr().String())
 	ch := make(chan string, 1)
 
 	ClientWG.Add(1)
@@ -54,26 +55,22 @@ func startClient(conn net.Conn, responseChan chan<- string, readerChan chan stri
 	readerChan <- resp
 }
 
-type Message struct {
-	Name string
-	Msg  string
-}
-
 func connect(name string, msg string) {
-	log.Println("Creating new connection")
+	logger.Println("Creating new connection")
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
-		log.Fatal("Error connecting to server")
+		logger.Fatalln("Error connecting to server")
 	}
-	log.Printf("Connected to server %s\n", conn.RemoteAddr().String())
+	logger.Printf("Connected to server %s\n", conn.RemoteAddr().String())
 
 	readerChan := make(chan string, 1)
 	writerChan := make(chan string, 1)
 
 	ClientWG.Add(1)
 	go startClient(conn, readerChan, writerChan, name, msg)
-	log.Printf("chan writer: %s\n", <-writerChan)
+	logger.Printf("chan writer: %s\n", <-writerChan)
 }
+
 func srvrMsg(name string, msg string) {
 	connect(name, msg+"\n") //Only open a new connection when we want to say something
 }
@@ -83,7 +80,7 @@ func msg(name string) {
 	reader := bufio.NewReader(os.Stdin)
 	rb, err := reader.ReadString('\n')
 	if err != nil {
-		log.Fatalf("error reading message from stdin: %s\n", err)
+		logger.Fatalf("error reading message from stdin: %s\n", err)
 	}
 	connect(name, rb) //Only open a new connection when we want to say something
 }
@@ -93,7 +90,7 @@ func newServerMessageConnection(sm chan string) {
 
 }
 func handleServerMessage(m string) {
-	log.Printf("Server message: %s\n", m)
+	logger.Printf("Server message: %s\n", m)
 }
 func listenForServerMessages(fromServerChan chan<- string) {
 	smChan := make(chan string)
@@ -129,7 +126,8 @@ func join() func() {
 	}
 }
 func RunClient() {
-	defer initClientLog().Close()
+	logger := NewLogger("client")
+	logger.Println("Starting client")
 	yMsg := join()
 	for {
 		yMsg() // disconnect to reset name

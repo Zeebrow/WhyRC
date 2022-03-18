@@ -5,34 +5,39 @@ import (
 	"os"
 )
 
-type ServerLog struct {
-}
-type ServerLogger interface {
-	Debug(msg string)
-}
-
-func (*ServerLog) Debug(s string) {
-	log.Printf("[server]: %s\n", s)
-}
-
-func initLog() *os.File {
-	logFilePath := "logs/server.log"
-
-	f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
+func NewLogger(l string) Log {
+	f, err := os.OpenFile("logs/"+l+".log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		log.Fatalf("Could not open logfile '%s' for writing\n", logFilePath)
+		log.Fatalf("Error opening log file '%s': %s\n", l, err)
 	}
-	log.SetOutput(f)
-	return f
+	logger := log.New(f, "["+l+"]: ", log.LstdFlags)
+	return Log{loggerName: l, logger: logger}
 }
 
-func initClientLog() *os.File {
-	logFilePath := "logs/client.log"
+type Log struct {
+	loggerName string
+	logger     *log.Logger
+}
 
-	f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		log.Fatalf("Could not open logfile '%s' for writing\n", logFilePath)
+func (l *Log) Printf(m string, a ...interface{}) func(m string, a ...interface{}) {
+	return func(m string, a ...interface{}) {
+		l.logger.Printf(m, a)
 	}
-	log.SetOutput(f)
-	return f
+}
+func (l *Log) Println(t string) func(m string) {
+	return func(m string) {
+		l.logger.Println(m)
+	}
+}
+
+func (l *Log) Fatalf(m string, a ...interface{}) func(m string, a ...interface{}) {
+	return func(m string, a ...interface{}) {
+		l.logger.Fatalf(m, a)
+	}
+}
+
+func (l *Log) Fatalln(t string) func(m string) {
+	return func(m string) {
+		l.logger.Fatalln(m)
+	}
 }

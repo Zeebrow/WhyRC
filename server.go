@@ -14,19 +14,12 @@ type roomMsg struct {
 	OP   string
 	Text string
 }
-type messageSender interface {
-	Send()
-}
-
-func (m *roomMsg) Send() {
-
-}
 
 func response(conn net.Conn) {
 	resp := bufio.NewWriter(conn)
 	mb, merr := resp.WriteString("200")
 	if merr != nil {
-		log.Fatal("error writing response to client")
+		logger.Fatalln("error writing response to client")
 	}
 	log.Printf("Wrote %d bytes\n", mb)
 	resp.Flush()
@@ -38,11 +31,11 @@ func sendMessage(conn net.Conn, sender string, text string, ch chan string) {
 	resp := bufio.NewWriter(conn)
 	mb, merr := resp.WriteString(sender + " " + text)
 	if merr != nil {
-		log.Fatal("error writing response to client")
+		logger.Fatalln("error writing response to client")
 	}
-	log.Printf("Wrote %d bytes\n", mb)
+	logger.Printf("Wrote %d bytes\n", mb)
 	resp.Flush()
-	log.Println("Response sent.")
+	logger.Println("Response sent.")
 	conn.Close()
 }
 
@@ -59,7 +52,7 @@ func handleConn(ln net.Listener, incomingMsg chan<- string) {
 	log.Printf("Connected to client: %s\n", conn.RemoteAddr().String())
 	if err != nil {
 		conn.Close()
-		log.Fatal("Failed to bind to port " + conn.LocalAddr().String())
+		logger.Println("Failed to bind to port " + conn.LocalAddr().String())
 	}
 	// defer conn.Close()
 	defer ServerWG.Done()
@@ -67,14 +60,14 @@ func handleConn(ln net.Listener, incomingMsg chan<- string) {
 	reader := bufio.NewReader(conn)
 	s, err := reader.ReadString('\n')
 	if err == io.EOF {
-		log.Printf("%s\n", err)
+		logger.Printf("%s\n", err)
 	} else if err != nil {
-		log.Fatal("Error reading from conn")
+		logger.Fatalln("Error reading from conn")
 	}
-	log.Printf("Read %d bytes: %s\n", len(s), s)
+	logger.Printf("Read %d bytes: %s\n", len(s), s)
 	incomingMsg <- s
 	response(conn)
-	log.Println("Done")
+	logger.Println("Done")
 }
 
 var ServerWG sync.WaitGroup
@@ -82,21 +75,22 @@ var ServerWG sync.WaitGroup
 var roomText [512]roomMsg
 
 func RunServer() {
-	defer initLog().Close()
+	logger := NewLogger("server")
+	logger.Println("Staring server.")
 
 	msgCount := 0
 	port := "8080"
 	receiveNewMsg := make(chan string, 1)
 	ln, err := net.Listen("tcp4", ":"+port)
 	if err != nil {
-		log.Fatal(err)
+		logger.Printf("%s\n", err)
 	}
 	fmt.Printf("Listening on %s...\n", ln.Addr().String())
 	for {
 		ServerWG.Add(1)
 		go handleConn(ln, receiveNewMsg)
 		sender, message := splitSenderMessage(<-receiveNewMsg) // blocks here
-		log.Printf("Message from '%s': %s\n", sender, message)
+		logger.Printf("Message from '%s': %s\n", sender, message)
 		roomText[0] = roomMsg{OP: sender, Text: message}
 		msgCount++
 	}
