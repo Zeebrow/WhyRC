@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -18,26 +19,26 @@ func NewClientConnection(n string) ClientConnection {
 }
 
 func writeToClient(conn net.Conn, code int, msg string) {
+	var respMsg Message
+	var err error
+	respMsg.Code = code
+	respMsg.From = "server"
+	respMsg.Message = "~_~ " + msg
 	resp := bufio.NewWriter(conn)
-	mb, merr := resp.WriteString(msg)
-	if merr != nil {
-		log.Fatalln("error writing response to client")
-	}
-	log.Printf("Wrote %d bytes\n", mb)
-	resp.Flush()
-	log.Println("Response sent.")
-	conn.Close()
-}
 
-func sendMessage(conn net.Conn, sender string, text string, ch chan string) {
-	resp := bufio.NewWriter(conn)
-	mb, merr := resp.WriteString(sender + " " + text)
+	log.Printf("%v\n", respMsg)
+	msgBytes, err := json.Marshal(respMsg)
+	if err != nil {
+		log.Printf("error marshaling json: %s", err)
+	}
+	log.Println(string(msgBytes))
+
+	mb, merr := resp.Write(msgBytes)
 	if merr != nil {
 		log.Fatalln("error writing response to client")
 	}
-	log.Printf("Wrote %d bytes\n", mb)
 	resp.Flush()
-	log.Println("Response sent.")
+	log.Printf("Wrote %d bytes to client\n", mb)
 	conn.Close()
 }
 
@@ -56,7 +57,7 @@ func splitSenderMessage(s string) (sender interface{}, message string) {
 
 func handleRawConnection(ln net.Listener, incomingMsg chan<- string) {
 	conn, err := ln.Accept() //blocks until client dials
-	log.Printf("Connected to client: %s\n", conn.RemoteAddr().String())
+	// log.Printf("Connected to client: %s\n", conn.RemoteAddr().String())
 	if err != nil {
 		conn.Close()
 		log.Println("??? " + conn.LocalAddr().String())
@@ -79,7 +80,7 @@ func handleRawConnection(ln net.Listener, incomingMsg chan<- string) {
 		// someone has chatted
 		msgCount++
 		fmt.Printf("User '%s' sent a message (%d/%d) '%s'\n", sender, msgCount, MAX_ROOM_MESSAGES, message)
-		room.Post(Message{from: sender.(string), message: message})
+		room.Post(Message{From: sender.(string), Message: message})
 		writeToClient(conn, 200, "You posted a message!")
 		break
 	case int:

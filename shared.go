@@ -6,9 +6,19 @@ import (
 	"net"
 )
 
+type SRVMSG int
+
+const (
+	ACK   SRVMSG = 200
+	JOIN  SRVMSG = 420
+	LEAVE SRVMSG = 419
+	WRITE SRVMSG = 69
+)
+
 type Message struct {
-	from    string
-	message string
+	Code    int    `json:"code"`
+	From    string `json:"from"`
+	Message string `json:"message"`
 }
 type MessageHandler interface {
 	HandleMessage(code SRVMSG)
@@ -56,7 +66,7 @@ func (r *Room) HandleMessage(code SRVMSG, msg Message) {
 	switch code {
 	case JOIN:
 		fmt.Printf("Handle Join\n")
-		newUser := User{id: msg.message, present: false}
+		newUser := User{id: msg.Message, present: false}
 		eJoin := r.Join(newUser)
 		if eJoin != nil {
 			fmt.Println("Handle join error full room")
@@ -69,12 +79,3 @@ func (r *Room) HandleMessage(code SRVMSG, msg Message) {
 		fmt.Printf("Handle UNKNOWN (%d)", int(code))
 	}
 }
-
-type SRVMSG int
-
-const (
-	ACK   SRVMSG = 200
-	JOIN  SRVMSG = 420
-	LEAVE SRVMSG = 419
-	WRITE SRVMSG = 69
-)
