@@ -129,9 +129,10 @@ func RunServer() {
 		clients[i] = NewClientConnection("nobody")
 	}
 
-	var board []Message
+	var board Board
+	board = NewBoard("msg_boards/server.txt")
 	var gathering []User
-	room = Room{name: "lolcats", users: gathering, board: board}
+	room = Room{name: "lolcats", users: gathering, board: &board}
 
 	msgCount = 0
 	port := "8080"
@@ -145,7 +146,6 @@ func RunServer() {
 		ServerWG.Add(1)
 
 		go handleRawConnection(ln, receiveNewMsg) // allow clients to say something
-		fmt.Printf("a")
 		fmt.Println(<-receiveNewMsg)
 	}
 }
