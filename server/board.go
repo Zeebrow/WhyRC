@@ -1,13 +1,26 @@
 package server
 
-import "github.com/Zeebrow/whyrc/shared"
+import (
+	"log"
+	"os"
+
+	"github.com/Zeebrow/whyrc/shared"
+)
 
 type Board struct {
+	name     string
 	messages []shared.Message
-	filename string // why not a pointer to a file? because I'm dumb.
+	writeTo  *os.File
 }
 
 func NewBoard(fname string) Board {
 	var m []shared.Message
-	return Board{messages: m, filename: fname}
+	if fname == "stdout" {
+		return Board{messages: m, writeTo: os.Stdout}
+	}
+	of, err := os.OpenFile(fname, os.O_WRONLY, 0o600)
+	if err != nil {
+		log.Fatalf("Could not open file '%s' for writing\n", fname)
+	}
+	return Board{messages: m, writeTo: of}
 }

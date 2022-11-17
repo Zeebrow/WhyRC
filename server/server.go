@@ -37,16 +37,7 @@ const (
 )
 
 func (b *Board) NewMessage(m shared.Message) error {
-	f, err := os.OpenFile(b.filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0744)
-	if err != nil {
-		log.Printf("Could not open file '%s' for writing board messages.\n", b.filename)
-		return err
-	}
-	fmt.Fprintf(f, "%s> %s", m.From, m.Message)
-	if err != nil {
-		log.Fatal("Surely this will never happen Kappa")
-		return err
-	}
+	fmt.Fprintf(b.writeTo, "%s> %s", m.From, m.Message)
 	b.messages = append(b.messages, m)
 	return nil
 }
@@ -169,7 +160,7 @@ func RunServer() {
 	}
 
 	var board Board
-	board = NewBoard("msg_boards/server.txt")
+	board = NewBoard("stdout")
 	var gathering []user
 	room = Room{name: "lolcats", users: gathering, board: &board}
 
