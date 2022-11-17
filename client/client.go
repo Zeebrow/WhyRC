@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"bufio"
@@ -10,16 +10,18 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/Zeebrow/whyrc/shared"
 )
 
 var ClientWG sync.WaitGroup
 var USERNAME string
 
 // func letsRead(conn net.Conn, readerChan chan<- string) {
-func getServerResponse(conn net.Conn, readerChan chan<- Message) {
+func getServerResponse(conn net.Conn, readerChan chan<- shared.Message) {
 	defer conn.Close() //Close connection as soon as server responds
 	var err error = nil
-	var receivedMessage Message
+	var receivedMessage shared.Message
 	connReader := bufio.NewReader(conn)
 	var recBytes []byte
 	recBytes, err = connReader.ReadBytes('\n')
@@ -40,9 +42,9 @@ func getServerResponse(conn net.Conn, readerChan chan<- Message) {
 	}
 }
 
-func sendMessage(conn net.Conn, serverResponse chan<- Message, name string, msg string) {
+func sendMessage(conn net.Conn, serverResponse chan<- shared.Message, name string, msg string) {
 	var err error = nil
-	readCh := make(chan Message, 1)
+	readCh := make(chan shared.Message, 1)
 	go getServerResponse(conn, readCh) //receives server response and writes it to channel
 
 	writer := bufio.NewWriter(conn)
@@ -56,7 +58,7 @@ func sendMessage(conn net.Conn, serverResponse chan<- Message, name string, msg 
 	// log.Println("Closing connection")
 }
 
-func connect(name string, msg string, respChan chan Message) {
+func connect(name string, msg string, respChan chan shared.Message) {
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
 		log.Fatalln("Error connecting to server")
@@ -67,12 +69,12 @@ func connect(name string, msg string, respChan chan Message) {
 	log.Printf("received response from server: %v\n", <-respChan)
 }
 
-func srvrMsg(name string, msg string, respChan chan Message) {
+func srvrMsg(name string, msg string, respChan chan shared.Message) {
 	connect(name, msg+"\n", respChan) //Only open a new connection when we want to say something
 }
 
 // func join(clientMsgChan chan string) func(ch chan string) {
-func join(clientMsgChan chan Message, serverMsgChan chan Message) func() {
+func join(clientMsgChan chan shared.Message, serverMsgChan chan shared.Message) func() {
 	var n string = USERNAME
 	fmt.Println("Hi! You found the chat!")
 	fmt.Printf("What's your name?>")
@@ -93,12 +95,10 @@ func join(clientMsgChan chan Message, serverMsgChan chan Message) func() {
 			log.Fatalf("error reading message from stdin: %s\n", err)
 		}
 		connect(n, rb, clientMsgChan) //Only open a new connection when we want to say something
-		clientMsgChan <- Message{Code: 200, From: n, Message: "HAI"}
+		clientMsgChan <- shared.Message{Code: 200, From: n, Message: "HAI"}
 	}
 }
-func leaveRoom() {
 
-}
 func RunClient() {
 	f, err := os.OpenFile("logs/client.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
@@ -109,8 +109,8 @@ func RunClient() {
 	log.Println()
 	log.Println("Starting client")
 
-	clientSendMsgChan := make(chan Message, 1)
-	clientReceiveSrvrMsgChan := make(chan Message, 1)
+	clientSendMsgChan := make(chan shared.Message, 1)
+	clientReceiveSrvrMsgChan := make(chan shared.Message, 1)
 
 	yMsg := join(clientSendMsgChan, clientReceiveSrvrMsgChan)
 	for {

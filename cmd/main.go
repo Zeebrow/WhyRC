@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/Zeebrow/whyrc/client"
+	"github.com/Zeebrow/whyrc/server"
 )
 
 func main() {
@@ -10,9 +13,9 @@ func main() {
 	mode := flag.String("m", "client", "Run in either 'client' or 'server' mode")
 	flag.Parse()
 	if *mode == "client" {
-		RunClient()
+		client.RunClient()
 	} else if *mode == "server" {
-		RunServer()
+		server.RunServer()
 	} else {
 		fmt.Printf("Invalid mode option provided: '%s'\n", *mode)
 	}
